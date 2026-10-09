@@ -2,7 +2,7 @@
 
 ## Lesson Overview
 
-This lesson introduces **exception handling** and **logging** in Java (Java 21 ready). You'll learn how Java throws and handles exceptions, when to use LBYL vs EAFP, how to design specific vs general handlers, and how to propagate with `throws`. You'll also adopt the **SLF4J** façade and use **Logback** (console/file appenders) so behavior can change without touching application code.
+This lesson introduces **exception handling** and **logging** in Java (Java 21 ready). You'll learn how Java throws and handles exceptions, when to use LBYL vs EAFP, how to design specific vs general handlers, and how to propagate with `throws`. You'll also learn how logging works in Java using the **SLF4J** façade and **Logback**, and why that split lets logging behaviour change without touching application code.
 
 ## Lesson Objectives
 
@@ -10,7 +10,7 @@ By the end of this lesson, learners will be able to:
 
 1. **Implement** exception handling using `try-catch-finally` and explain the call stack and stack trace
 2. **Distinguish** checked vs unchecked exceptions and build custom exceptions for domain-specific failures
-3. **Apply** logging to a Java program using SLF4J + Logback
+3. **Explain** how logging works in Java using SLF4J and Logback, and the purpose of logging levels
 
 ---
 
@@ -402,6 +402,8 @@ public class CustomerNotFoundException extends Exception {
 
 Here is a method that looks up a customer in a list by id, and throws our custom exception if there is no match. Since the exception is checked, the method **must** declare `throws CustomerNotFoundException`.
 
+> **Where does this go?** Put `findCustomerById` and the calling code below into a `CustomExceptions.java` class with a `main` method. The method and `main` sit side by side as two methods of the same class. `Customer` and `CustomerNotFoundException` are separate files.
+
 ```java
 public static Customer findCustomerById(List<Customer> customers, int id) throws CustomerNotFoundException {
   for (Customer customer : customers) {
@@ -489,31 +491,9 @@ try {
 
 ---
 
-## Part 3: Maven Project Setup
+## Part 3: Logging in Java
 
-> ✅ **This is an in-class verification step, not a setup step.** Both the installation and the project setup were completed before this lesson:
-> - **Maven installation** was done as **pre-work in Lesson 1** (see Lesson 1's `setup.md`).
-> - **Maven project creation** (via `maven-archetype-quickstart`, setting the `pom.xml` compiler release to 21, and verifying `Hello World!`) was done as **self-study for this lesson** (see `studies.md` Task 2).
->
-> If you have not completed either, refer to those materials now and complete them before continuing.
-
-In class, we simply verify the pre-class work is in place before we start adding logging dependencies.
-
-**Step 1** — Verify Maven is installed:
-
-```bash
-mvn -v
-```
-
-**Step 2** — Open your Maven project (created in `studies.md` Task 2) in VSCode.
-
-**Step 3** — Open `App.java` and run it. You should see `Hello World!` in the terminal.
-
-You are now ready to add SLF4J and Logback dependencies in Part 4.
-
----
-
-## Part 4: Logging Using SLF4J and Logback
+Handling an exception is one half of the job. The other half is leaving a **record** of what happened, so that someone can find out later why something went wrong. That record is what logging gives you.
 
 ### What is Logging?
 
@@ -542,118 +522,17 @@ SLF4J API  (you always code against this)
 Logback / Log4j / others  (the actual implementation — swappable)
 ```
 
-The benefit is that your application code **never changes** when you switch logging frameworks. You only swap one dependency in `pom.xml`. This is the same principle as coding to a `List` interface instead of `ArrayList` — your code stays stable, only the implementation changes.
-
-> **Note:** we are going straight to Logback as our implementation. If you ever wanted Log4j instead, you would change that **one dependency line** in `pom.xml` and not a single line of your Java code. That is the whole point of the facade.
+The benefit is that your application code **never changes** when you switch logging frameworks. You only swap one dependency. This is the same principle as coding to a `List` interface instead of `ArrayList` — your code stays stable, only the implementation changes.
 
 ### What is Logback?
 
-**Logback** is a mature, production-grade logging framework for Java. It is the **natural successor to Log4j** and is the most widely used SLF4J implementation in the Java ecosystem. It is also what Spring Boot uses by default, so this is the stack you will meet in real projects.
+**Logback** is a mature, production-grade logging framework for Java. It is the **natural successor to Log4j** and is the most widely used SLF4J implementation in the Java ecosystem.
 
-Logback gives you:
-- Full control over **log levels** per class or package
-- **Multiple appenders** — write to console, file, database, or remote systems simultaneously
-- **Rolling file appenders** — automatically rotate log files by size or date
-- **Pattern-based formatting** — customise exactly what each log line looks like
-- Configuration via `logback.xml` — **no code changes needed** to change logging behaviour
+It is also **what Spring Boot uses by default** — so SLF4J and Logback are the exact stack you will meet in every real Java project.
 
-### Adding Dependencies
+### Logging Levels
 
-Add these two dependencies to your `pom.xml` — the SLF4J API (what you code against) and Logback (the implementation that does the work):
-
-```xml
-<dependency>
-  <groupId>org.slf4j</groupId>
-  <artifactId>slf4j-api</artifactId>
-  <version>2.0.12</version>
-</dependency>
-
-<dependency>
-  <groupId>ch.qos.logback</groupId>
-  <artifactId>logback-classic</artifactId>
-  <version>1.5.6</version>
-</dependency>
-```
-
-### Using SLF4J in Your Code
-
-Notice the log messages describe real application events — the kind of messages you would actually write in a customer-facing app.
-
-```java
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class App {
-
-  private static final Logger logger = LoggerFactory.getLogger(App.class);
-
-  public static void main(String[] args) {
-    logger.info("Application started");
-    logger.info("Fetching customer list");
-    logger.warn("Customer email is missing for id: 2");
-    logger.error("Failed to save customer: Alice");
-    logger.info("Application ended");
-  }
-}
-```
-
-Two things to notice:
-
-- **`LoggerFactory.getLogger(App.class)`** — we pass in the class itself, so the logger knows which class it belongs to. That class name then appears in every log line automatically, so you always know where a message came from.
-- **`private static final`** — one logger per class, created once, shared. You will write this exact line at the top of nearly every class in a real project.
-
-**Parameterised messages.** Instead of joining strings together, use `{}` placeholders and pass the values:
-
-```java
-logger.info("Customer {} created with id {}", "Alice", 1);
-```
-
-This is the production habit: it is cleaner to read, and the message is only assembled if the log is actually going to be written. With string concatenation the text is built every time, even when the level is switched off.
-
-### Configure Logback
-
-Logback is configured using a file called `logback.xml` placed in `src/main/resources`.
-
-> **Note:** If you do not see a `resources` folder under `src/main`, create it manually: right-click `src/main` → New Folder → name it `resources`. It sits beside the `java` folder (they are siblings), not inside it.
-
-We will configure **console and file output together** in one go. Create `src/main/resources/logback.xml`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<configuration>
-  <!-- Console Appender -->
-  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-    <encoder>
-      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-    </encoder>
-  </appender>
-
-  <!-- File Appender -->
-  <appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <file>logs/application.log</file>
-    <encoder>
-      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-    </encoder>
-  </appender>
-
-  <root level="INFO">
-    <appender-ref ref="CONSOLE"/>
-    <appender-ref ref="FILE"/>
-  </root>
-</configuration>
-```
-
-Let's decode this:
-
-- An **appender** is *where* the logs go. Here we have two — one for the console, one for a file.
-- The **encoder** and its **pattern** control *what each line looks like*: `%d` is the timestamp, `%thread` is the thread name, `%-5level` is the severity padded to 5 characters so the output lines up, `%logger{36}` is the class name, `%msg` is your message, and `%n` is a newline.
-- The **root** element ties it together — it sets the base log level and lists which appenders to write to.
-
-The `logs/application.log` file is created automatically by Logback when the application runs — you do not need to create it manually.
-
-Run the application, check the console, then open `logs/application.log` and confirm the same lines are there.
-
-### Logging Levels in Logback
+Every log message carries a level, and the levels are ordered by severity.
 
 | Level   | Description                                                                  |
 | ------- | ---------------------------------------------------------------------------- |
@@ -663,27 +542,12 @@ Run the application, check the console, then open `logs/application.log` and con
 | `WARN`  | Potentially harmful situations.                                              |
 | `ERROR` | Error events that might still allow the application to continue.             |
 
-Levels are hierarchical — setting the root level to `INFO` means only `INFO`, `WARN`, and `ERROR` messages appear. `DEBUG` and `TRACE` are suppressed. This is how you control verbosity between development and production environments — **just change the level in `logback.xml`, no code changes needed**.
+Levels are **hierarchical** — setting the level to `INFO` means only `INFO`, `WARN`, and `ERROR` messages appear. `DEBUG` and `TRACE` are suppressed.
 
-### Why File Logging Matters in Production
+This is how you control verbosity between environments: verbose in development, quiet in production. And crucially, you change it in **configuration, not code** — the `logger.debug(...)` lines stay in your source, they simply do not print. Nothing is recompiled or redeployed.
 
-In production, your application runs on a server — there is no console for you to watch. **File logging** is essential because:
+> **Coming up:** SLF4J and Logback are built into Spring Boot, so there is nothing to install. In Lesson 3.11 you will put this to work — writing log statements in a real controller and configuring levels and file output.
 
-- It creates a **persistent record** of everything that happened — even after the server restarts
-- You can **review logs after the fact** when investigating a bug or incident
-- Multiple team members can access the same log file
-- Log files can be shipped to centralised monitoring tools (e.g. Datadog, Splunk, ELK Stack)
+---
 
-Console logs disappear the moment a process stops. File logs stay. In real applications you typically configure **both** — console for development convenience, file for production persistence.
-
-For further reading, refer to the [logback documentation](http://logback.qos.ch/documentation.html).
-
-### 👨‍💻 Activity: SLF4J + Logback **(5 minutes)**
-
-In your Maven project `App.java`, log a small customer workflow:
-
-- Add an `INFO` log for application start and end
-- Log an `INFO` message such as `"Processing customer: Alice"`
-- Calculate a customer's average order value as `totalSpent / orderCount`. With `orderCount = 0` this throws an `ArithmeticException` — trigger it inside a `try-catch` and log it with `ERROR`
-- Run the app and verify output appears in both the console and `logs/application.log`
-- Note: SLF4J/Logback's most severe level is `ERROR` — there is no level above it.
+END
